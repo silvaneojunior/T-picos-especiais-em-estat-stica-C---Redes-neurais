@@ -1,0 +1,51 @@
+---
+title: "Lista 2"
+author: "Silvaneo Viera dos Santos Junior"
+date: "9/5/2021"
+output: pdf_document
+header-includes:
+  - \usepackage{cancel}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+```
+
+## Questão 1
+
+A cada item, para encontrar a região de fronteira de classificação, basta que encontremos $\vec{u}$ e $\vec{v}$ tais que:
+
+$$
+\begin{aligned}
+\langle\vec{u},\vec{w}\rangle &=-b\\
+\langle\vec{v},\vec{w}\rangle &=0
+\end{aligned}
+$$
+
+Daí, para todo $t \in \mathbb{R}$, vale que:
+
+$$
+\sigma(\vec{w}^t(\vec{u}+t\vec{v})+b)=\sigma(\vec{w}^t\vec{u}+t\cancelto{0}{\vec{w}^t\vec{v}}+b)=\sigma(-b+b)=\sigma(0)=0.5
+$$
+
+Daí, obtemos a fronteira de classificação.
+
+### a)
+
+```{r}
+u=matrix(c(1,1),2,1)
+v=matrix(c(1,-1),2,1)
+
+left_lim=u-v
+right_lim=u+v
+
+
+ggplot()+
+  geom_line(aes(x=c(left_lim[1],right_lim[1]),
+                y=c(left_lim[2],right_lim[2]),
+                color='50%'),
+            linetype='dashed')+
+  theme_bw()
+```
+
