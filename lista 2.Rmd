@@ -8,8 +8,9 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
+library(latex2exp)
 ```
 
 ## Questão 1
@@ -40,12 +41,372 @@ v=matrix(c(1,-1),2,1)
 left_lim=u-v
 right_lim=u+v
 
+ggplot()+
+  geom_line(aes(x=c(left_lim[1],right_lim[1]),
+                y=c(left_lim[2],right_lim[2]),
+                color='=0.5'),
+            linetype='dashed')+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymax=c(left_lim[2],right_lim[2]),
+                ymin=c(min(c(left_lim[2],right_lim[2])),min(c(left_lim[2],right_lim[2]))),
+                fill='<0.5'),
+              alpha=0.25)+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymin=c(left_lim[2],right_lim[2]),
+                ymax=c(max(c(left_lim[2],right_lim[2])),max(c(left_lim[2],right_lim[2]))),
+                fill='>0.5'),
+              alpha=0.25)+
+  scale_x_continuous(TeX('x_1'),expand=c(0,0))+
+  scale_y_continuous(TeX('x_2'),expand=c(0,0))+
+  labs(title='Fronteira de classificação para o item 1')+
+  scale_color_manual('',values='black')+
+  theme_bw()
+```
+
+### b)
+
+```{r}
+u=matrix(c(1,1),2,1)
+v=matrix(c(1,0),2,1)
+
+left_lim=u-v
+right_lim=u+v
 
 ggplot()+
   geom_line(aes(x=c(left_lim[1],right_lim[1]),
                 y=c(left_lim[2],right_lim[2]),
-                color='50%'),
+                color='=0.5'),
             linetype='dashed')+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymax=c(left_lim[2],right_lim[2]),
+                ymin=0,
+                fill='<0.5'),
+              alpha=0.25)+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymin=c(left_lim[2],right_lim[2]),
+                ymax=2,
+                fill='>0.5'),
+              alpha=0.25)+
+  scale_x_continuous(TeX('x_1'),expand=c(0,0))+
+  scale_y_continuous(TeX('x_2'),expand=c(0,0))+
+  labs(title='Fronteira de classificação para o item 2')+
+  scale_color_manual('',values='black')+
   theme_bw()
 ```
+
+### c)
+
+```{r}
+u=matrix(c(0,1),2,1)
+v=matrix(c(1,2),2,1)
+
+left_lim=u-v
+right_lim=u+v
+
+ggplot()+
+  geom_line(aes(x=c(left_lim[1],right_lim[1]),
+                y=c(left_lim[2],right_lim[2]),
+                color='=0.5'),
+            linetype='dashed')+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymax=c(left_lim[2],right_lim[2]),
+                ymin=c(min(c(left_lim[2],right_lim[2])),min(c(left_lim[2],right_lim[2]))),
+                fill='<0.5'),
+              alpha=0.25)+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymin=c(left_lim[2],right_lim[2]),
+                ymax=c(max(c(left_lim[2],right_lim[2])),max(c(left_lim[2],right_lim[2]))),
+                fill='>0.5'),
+              alpha=0.25)+
+  scale_x_continuous(TeX('x_1'),expand=c(0,0))+
+  scale_y_continuous(TeX('x_2'),expand=c(0,0))+
+  labs(title='Fronteira de classificação para o item 3')+
+  scale_color_manual('',values='black')+
+  theme_bw()
+```
+
+### d)
+
+```{r}
+u=matrix(c(1,1),2,1)
+v=matrix(c(1,-1),2,1)
+
+left_lim=u-v
+right_lim=u+v
+
+ggplot()+
+  geom_line(aes(x=c(left_lim[1],right_lim[1]),
+                y=c(left_lim[2],right_lim[2]),
+                color='=0.5'),
+            linetype='dashed')+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymax=c(left_lim[2],right_lim[2]),
+                ymin=c(min(c(left_lim[2],right_lim[2])),min(c(left_lim[2],right_lim[2]))),
+                fill='>0.5'),
+              alpha=0.25)+
+  geom_ribbon(aes(x=c(left_lim[1],right_lim[1]),
+                ymin=c(left_lim[2],right_lim[2]),
+                ymax=c(max(c(left_lim[2],right_lim[2])),max(c(left_lim[2],right_lim[2]))),
+                fill='<0.5'),
+              alpha=0.25)+
+  scale_x_continuous(TeX('x_1'),expand=c(0,0))+
+  scale_y_continuous(TeX('x_2'),expand=c(0,0))+
+  labs(title='Fronteira de classificação para o item 4')+
+  scale_color_manual('',values='black')+
+  theme_bw()
+```
+
+## Questão 2
+
+Ao se inicializar todos os pesos e vieses com o mesmo valor temos que o gradiente para todos os pesos de uma mesma camada será igual, pois todos os neurônios da camada recebem o mesmo $input$, logo terão o mesmo $output$, ademais, como os pesos das camadas seguintes são todos iguais, temos que a influência de cada neurôrio na saída da rede será a mesma, resultando então no mesmo gradiente para todos os pesos. O resultado final desta inicialização é que a rede será restrita a uma estrutura muito especifica que equivale a ter apenas um neurônio em cada camada, assim, o capacidade de aprendizado da rede será extremamente limitada.
+
+## Questão 3
+
+Podemos definir um $MLP$ com $k$ camadas como uma função $f$ com a seguinte estrutura:
+
+$$
+f(\vec{x})=A_k \cdot L_k \cdot A_{k-1} \cdot L_{k-1} \cdots A_2\cdot L_2\cdot A_1\cdot L_1(\vec{x}) 
+$$
+
+Onde $A_i$ é a função de ativação da camada $i$ e $L_i$ é a função afim associada com a camada $i$. Sabemos que o conjunta das funções afins é fechada para a operação de composição, daí, se $A_i$ é uma função linear (e portanto, afim), então $f$ também é uma função afim, logo podemos reescrever $f$ da seguinte forma:
+
+$$
+f(\vec{x})=W\vec{x}+\vec{b}
+$$
+
+Para alguma matriz $W$ e algum vetor $\vec{b}$, ou seja, esta rede neural com $k$ camadas teria o mesmo poder preditivo de uma rede com uma única camada.
+
+## Questão 4
+Nas questões a seguir ($3$ e $4$), alternamos entre o uso das linguagens *R* (para gráficos) e *Python* (para cálculos um pouco mais intesivos), sendo que o pacote *reticulate* foi utilizado para intermediá-las, desta forma, a variável $py$ no $R$ armazena as variáveis do *Python* (ou seja, o comando *py\$exemplo* acessa a variável *exemplo* do *python* no *R*) e, de forma análoga, a variável *r* no *Python* armazena as variáveis do *R* (ou seja, o comando *r.exemplo* acessa a variável *exemplo* do *R* no *Python*). Para evitar confusões entre as linguagens, colocamos um indicativo de qual a linguagem usada no início de cada bloco de código.
+
+Vale destacar também que usamos a versão $3.8.10$ do *Python* e os pacotes *Numpy* e *Tensorflow*, ademais usamos a versão $4.1.0$ do *R* com os pacotes *MASS*, *ggplot2*, *latex2exp*, *tidyr* e *reticulate*.
+
+```{r setup_r}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Este código deve ser usado no RStudio integrado a algum Kernel do Python.
+# A versão do RStudio usada é 1.4.1717.
+# A versão do knitr usada é 1.33.
+library(ggplot2)    # Versão 3.3.5
+library(latex2exp)  # Versão 0.5.0
+library(reticulate) # Versão 1.20
+library(kableExtra) # Versão 1.3.4
+
+sessionInfo()
+```
+
+```{python setup_python}
+# A versão do Python usada é 3.8.10.
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+import tensorflow as tf # Versão 2.6.0
+import numpy as np      # Versão 1.19.5
+tf.random.set_seed(13031998)
+```
+
+```{r}
+#### R ####
+data_train=read.csv('mnist_train.csv',header=F)
+train_x=data_train[1:50000,2:785]
+train_y=data_train[1:50000,1]
+
+val_x=data_train[50001:60000,2:785]
+val_y=data_train[50001:60000,1]
+
+data_test=read.csv('mnist_test.csv',header=F)
+test_x=data_test[,2:785]
+test_y=data_test[,1]
+```
+
+```{python}
+#### Python ####
+
+# Classe para registrar o tempo de execução de cada epoch
+class TimeHistory(tf.keras.callbacks.Callback):
+  def on_train_begin(self, logs={}):
+    self.times = []
+  def on_epoch_begin(self, batch, logs={}):
+    self.epoch_time_start = tf.timestamp()
+  def on_epoch_end(self, batch, logs={}):
+    self.times.append(tf.timestamp() - self.epoch_time_start)
+
+models=[]
+for i in range(1,5):
+  models.append(tf.keras.Sequential(
+    [tf.keras.layers.Dense(32, activation='relu') for j in range(i)]+
+    [tf.keras.layers.Dense(10, activation='softmax')],
+    name='Modelo_'+str(i))
+    )
+  models[-1].compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+                optimizer=tf.keras.optimizers.Adam(1e-3),
+                metrics=['accuracy'])
+```
+
+```{python}
+#### Python ####
+time_callbacks=[TimeHistory(),TimeHistory(),TimeHistory(),TimeHistory()]
+history=[]
+n=100
+
+for model,time_callback in zip(models,time_callbacks):
+  history.append(
+    model.fit(tf.constant(r.train_x),
+              tf.constant(r.train_y),
+              batch_size=512,
+              epochs=n,
+              validation_data=(tf.constant(r.val_x),tf.constant(r.val_y)),
+              verbose=0,
+              shuffle=False,
+              callbacks=[time_callback])
+                    )
+  print(model.summary())
+  print('\n----------------------------------------\n');
+                    
+epoch1,time1=history[0].history['accuracy'],np.asarray(time_callbacks[0].times)
+epoch2,time2=history[1].history['accuracy'],np.asarray(time_callbacks[1].times)
+epoch3,time3=history[2].history['accuracy'],np.asarray(time_callbacks[2].times)
+epoch4,time4=history[3].history['accuracy'],np.asarray(time_callbacks[3].times)
+
+best_acur_table=np.asarray([[history[0].history['accuracy'][-1],
+                             history[1].history['accuracy'][-1],
+                             history[2].history['accuracy'][-1],
+                             history[3].history['accuracy'][-1]],
+                            [history[0].history['val_accuracy'][-1],
+                             history[1].history['val_accuracy'][-1],
+                             history[2].history['val_accuracy'][-1],
+                             history[3].history['val_accuracy'][-1]]])
+```
+
+### b)
+
+```{r}
+#### R ####
+
+acur=c(py$epoch1,py$epoch2,py$epoch3,py$epoch4)
+layer=c(rep(1,py$n),rep(2,py$n),rep(3,py$n),rep(4,py$n))
+
+epochs=data.frame(precisao=acur,camadas=factor(layer))
+
+ggplot(epochs)+
+  geom_line(aes(x=rep(1:py$n,4),y=precisao,color=camadas))+
+  #geom_point(aes(x=rep(1:py$n,4),y=precisao,color=camadas))+
+  scale_x_continuous('Etapa')+
+  scale_y_continuous('Acurácia')+
+  scale_color_hue('Quantidade de\ncamadas latentes')+
+  labs(title='Precisão ao longo das iterações')+
+  theme_bw()
+```
+
+### c)
+
+```{r}
+#### R ####
+t=c(0,0,0,0)
+acur=c(0,0,0,0)
+for(time in c(1:py$n)){
+  t=c(t,
+         sum(py$time1[1:time]),
+         sum(py$time2[1:time]),
+         sum(py$time3[1:time]),
+         sum(py$time4[1:time]))
+  acur=c(acur,
+         py$epoch1[time],
+         py$epoch2[time],
+         py$epoch3[time],
+         py$epoch4[time])
+}
+layer=rep(1:4,py$n+1)
+
+epochs=data.frame(tempo=t,precisao=acur,camadas=factor(layer))
+
+ggplot(epochs)+
+  geom_line(aes(x=tempo,y=precisao,color=camadas))+
+  #geom_point(aes(x=tempo,y=precisao,color=camadas))+
+  scale_x_continuous('Tempo acumulado (em segundos)')+
+  scale_y_continuous('Acurácia')+
+  scale_color_hue('Quantidade de\ncamadas latentes')+
+  labs(title='Precisão ao longo do tempo')+
+  theme_bw()
+```
+
+### d)
+
+```{r}
+tab_data=data.frame(1:4,paste(round(py$best_acur_table[1,],4)*100,'\\%'),paste(round(py$best_acur_table[2,],4)*100,'\\%'))
+
+kable(tab_data,format="latex", align = "c", booktabs=T,escape=F,col.names=c('Quantidade de\ncamadas latentes','Treino','Validação')) %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+### e)
+
+```{python}
+ensemble_out=tf.math.reduce_sum([model.predict(tf.constant(r.val_x)) for model in models],axis=0)
+ensemble_pred=tf.cast(tf.argmax(ensemble_out,axis=1),'int32')
+
+ensemble_acur=tf.math.reduce_mean(tf.cast(ensemble_pred==tf.constant(r.val_y),'float32'))
+print(ensemble_acur)
+```
+
+### f)
+
+```{python}
+#### Python ####
+models=[]
+for i in range(1,5):
+  models.append(tf.keras.Sequential(
+    [tf.keras.layers.Dense(32, activation='relu') for j in range(i)]+
+    [tf.keras.layers.Dense(10, activation='softmax')],
+    name='Modelo_'+str(i))
+    )
+  models[-1].compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+                optimizer=tf.keras.optimizers.Adam(1e-3),
+                metrics=['accuracy'])
+history=[]
+n=100
+
+for model,time_callback in zip(models,time_callbacks):
+  history.append(
+    model.fit(tf.concat([r.train_x,r.val_x],axis=0),
+              tf.concat([r.train_y,r.val_y],axis=0),
+              batch_size=512,
+              epochs=n,
+              verbose=0,
+              validation_data=(tf.constant(r.test_x),tf.constant(r.test_y)),
+              shuffle=False)
+                    );
+                    
+ensemble_out_train=tf.math.reduce_sum([model.predict(tf.concat([r.train_x,r.val_x],axis=0)) for model in models],axis=0)
+ensemble_pred_train=tf.cast(tf.argmax(ensemble_out_train,axis=1),'int32')
+
+ensemble_acur_train=tf.math.reduce_mean(tf.cast(ensemble_pred_train==tf.concat([r.train_y,r.val_y],axis=0),'float32'))
+
+ensemble_out_test=tf.math.reduce_sum([model.predict(tf.constant(r.test_x)) for model in models],axis=0)
+ensemble_pred_test=tf.cast(tf.argmax(ensemble_out_test,axis=1),'int32')
+
+ensemble_acur_test=tf.math.reduce_mean(tf.cast(ensemble_pred_test==tf.constant(r.test_y),'float32'))
+
+                  
+
+best_acur_table=np.asarray([[history[0].history['accuracy'][-1],
+                             history[1].history['accuracy'][-1],
+                             history[2].history['accuracy'][-1],
+                             history[3].history['accuracy'][-1],
+                             ensemble_acur_train],
+                            [history[0].history['val_accuracy'][-1],
+                             history[1].history['val_accuracy'][-1],
+                             history[2].history['val_accuracy'][-1],
+                             history[3].history['val_accuracy'][-1],
+                             ensemble_acur_test]])
+```
+
+```{r}
+tab_data=data.frame(c(1:4,'Ensemble'),paste(round(py$best_acur_table[1,],4)*100,'\\%'),paste(round(py$best_acur_table[2,],4)*100,'\\%'))
+
+kable(tab_data,format="latex", align = "c", booktabs=T,escape=F,col.names=c('Quantidade de\ncamadas latentes','Treino+Validação','Teste')) %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+
 
