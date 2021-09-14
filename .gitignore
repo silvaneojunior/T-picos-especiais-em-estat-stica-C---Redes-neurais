@@ -3,3 +3,4 @@
 /.Rproj.user/
 mnist_test.csv
 mnist_train.csv
+*.pdf
