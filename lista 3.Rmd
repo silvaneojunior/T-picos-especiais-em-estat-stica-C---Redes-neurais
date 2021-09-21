@@ -1,0 +1,59 @@
+---
+title: "Lista 3"
+author: "Silvaneo Viera dos Santos Junior"
+date: ""
+output: pdf_document
+header-includes:
+  - \usepackage{cancel}
+---
+
+## Questão 1
+
+### a)
+
+Observe que a operação de convolução usando um filtro $F$ é uma transformação linear, especificamente, suponha que tenhamos um filtro $F \in M_{a \times b}$ aplicada em uma matrix $X \in M_{n \times m}$ (por simplicidade, vamos supor *stride* $(1,1)$ e sem *zero padding*), então a operação de convolução $C(X;F)$ é uma transformação linear com seguinte domínio e contra-domínio:
+
+$$
+C:M_{n \times m} \rightarrow M_{(n-a+1) \times (m-b+1)}
+$$
+
+Para ver que a transformação é linear, basta observar que cada elemento da matrix resultante da convolução equivale ao produto interno entre uma submatrix de $X$ e $F$, como o produto interno é bilinear, então, em particular, ele é linear em relação a $X$, daí é fácil ver a transformação $C$ é também linear.
+
+Como $M_{n \times m}$ e $M_{(n-a+1) \times (m-b+1)}$ são espaços vetoriais de dimensão finita, logo, pelo Teorema Fundamental da Álgebra Linear, existe um par de bases finitas ($B_1$ e $B_2$) para estes espaços e, neste par, existe uma única matriz $T$ tal que: 
+
+$$C(X;F)_{B_2}=TX_{B_1}, \forall X \in M_{n \times m}$$
+
+Onde $X_{B_1}$ é a matriz $X$ escrita como vetor na base $B_1$ e $C(X;F)_{B_2}$ é a matriz $C(X;F)$ escrita como vetor na base $B_2$.
+
+Com isto, seja $f$ a função de ativação utilizada após a convolução, podemos reescrever a camada de convolução como um MLP da seguinte forma:
+
+$$
+f(C(X;F)+b)=f(TX+b)
+$$
+
+Sendo que na formula acima, por simplicidade, estamos ignorando as bases dos vetores e matrizes.
+
+Sobre a esparcidade do MLP, de fato, pode ser verificado que a matriz $T$ sempre pode ser escrita como uma matriz esparsa, para ver isto, basta ver que $T$ leva um espaço vetorial de dimensão $nm$ para um espaço com dimensão $(n-a+1)(m-b+1)=nm+n+m-am-bn+ab-a-b+1$, daí o núcleo de $T$ tem dimensão ao menos $am+bn-ab+a+b-n-m-1$, daí, tomando $B_1$ tal que ao menos $am+bn-ab+a+b-n-m-1$ vetores pertençam ao núcleo de $C(X;F)$, então a matriz $T$ será esparça.
+
+### b)
+
+Acredito que dois benefícios se destaquem no uso do mesmo *kernel* em partes diferentes de uma imagem:
+
+- A detecção de características da imagem se torna invariante a translações, por exemplo, caso o *kernel* seja altamente sensível a círculos, então ele poderá detectar círculos na imagem com a mesma eficiencia, independente da posição do círculo.
+
+- Ao se usar o mesmo *kernel* na imagem há uma "economia" de parâmetros, facilitando o treino e deixando o modelo menos propenso a *overfitting*.
+
+### c)
+
+Como visto no item *a)*, podemos interpretar a camada de convolução como uma camada MLP, porém, além disto, os neurônios do MLP compartilham pesos entre si, para ver isto, basta observar que a matriz $T$ (mesma notação do item *a)*) possui $nm(n-a+1)(m-b+1)$ valores, dos quais a maior parte será $0$, porém, os demais valores serão repetições dos $ab$ números no filtro $F$, de fato, a matriz tem no máximo $ab+1$ números distintos, portanto, cada parâmetro será repetido diversas vezes. Essa repetição de parâmetros equivale ao compartilhamento de pesos entre os neurônios.
+
+## Questão 2
+
+Trivialmente, podemos calcular o output como:
+
+$$
+\begin{bmatrix}
+2,2\\
+1,0
+\end{bmatrix}
+$$
