@@ -11,7 +11,7 @@ header-includes:
 
 ### a)
 
-Observe que a operação de convolução usando um filtro $F$ é uma transformação linear, especificamente, suponha que tenhamos um filtro $F \in M_{a \times b}$ aplicada em uma matrix $X \in M_{n \times m}$ (por simplicidade, vamos supor *stride* $(1,1)$ e sem *zero padding*), então a operação de convolução $C(X;F)$ é uma transformação linear com seguinte domínio e contra-domínio:
+Observe que a operação de convolução usando um filtro $F$ é uma transformação linear, especificamente, suponha que tenhamos um filtro $F \in M_{a \times b}$ aplicado em uma matrix $X \in M_{n \times m}$ (por simplicidade, vamos supor *stride* $(1,1)$ e sem *zero padding*), então a operação de convolução $C(X;F)$ é uma transformação linear com seguinte domínio e contra-domínio:
 
 $$
 C:M_{n \times m} \rightarrow M_{(n-a+1) \times (m-b+1)}
@@ -33,13 +33,13 @@ $$
 
 Sendo que na formula acima, por simplicidade, estamos ignorando as bases dos vetores e matrizes.
 
-Sobre a esparcidade do MLP, de fato, pode ser verificado que a matriz $T$ sempre pode ser escrita como uma matriz esparsa, para ver isto, basta ver que $T$ leva um espaço vetorial de dimensão $nm$ para um espaço com dimensão $(n-a+1)(m-b+1)=nm+n+m-am-bn+ab-a-b+1$, daí o núcleo de $T$ tem dimensão ao menos $am+bn-ab+a+b-n-m-1$, daí, tomando $B_1$ tal que ao menos $am+bn-ab+a+b-n-m-1$ vetores pertençam ao núcleo de $C(X;F)$, então a matriz $T$ será esparça.
+Sobre a esparcidade do MLP, de fato, pode ser verificado que a matriz $T$ sempre pode ser escrita como uma matriz esparsa, para ver isto, basta ver que $T$ leva um espaço vetorial de dimensão $nm$ para um espaço com dimensão $(n-a+1)(m-b+1)=nm+n+m-am-bn+ab-a-b+1$, daí o núcleo de $T$ tem dimensão ao menos $am+bn-ab+a+b-n-m-1$, daí, tomando $B_1$ tal que ao menos $am+bn-ab+a+b-n-m-1$ vetores pertençam ao núcleo de $C(X;F)$, então a matriz $T$ será composta em grande parte por zeros.
 
 ### b)
 
-Acredito que dois benefícios se destaquem no uso do mesmo *kernel* em partes diferentes de uma imagem:
+Acredito que dois benefícios se destacam no uso do mesmo *kernel* em partes diferentes de uma imagem:
 
-- A detecção de características da imagem se torna invariante a translações, por exemplo, caso o *kernel* seja altamente sensível a círculos, então ele poderá detectar círculos na imagem com a mesma eficiencia, independente da posição do círculo.
+- A detecção de características da imagem se torna invariante a translações; por exemplo, caso o *kernel* seja altamente sensível a círculos, então ele poderá detectar círculos na imagem com a mesma eficiencia, independente da posição do círculo.
 
 - Ao se usar o mesmo *kernel* na imagem há uma "economia" de parâmetros, facilitando o treino e deixando o modelo menos propenso a *overfitting*.
 
@@ -57,3 +57,211 @@ $$
 1,0
 \end{bmatrix}
 $$
+
+## Questão 3
+
+Para o treino das redes a seguir foi utilizado o *Python* $3.8.10$ e os pacotes *Tensorflow*, *pickle* e *matplotlib*.
+
+O treino da rede acabou exigindo um poder computacional relativamente alto, desta forma, não foi viável fazer a lista sem o uso de uma GPU (pelo menos não no meu computador pessoal com a arquitetura escolhida). A princípio, isso não seria um problema, porém, como mencionado na lista anterior, o uso da GPU no treino da rede faz com que os resultados obitidos não possam ser perfeitamente reproduzidos, mesmo fixando a semente de aleatoriedade em $13031998$.
+
+
+```{python}
+
+import pickle # versão '4.0'.
+import tensorflow as tf # versão '2.6.0'.
+import matplotlib.pyplot as plt # versão '3.3.4'.
+tf.random.set_seed(13031998)
+```
+
+
+```{python}
+train_x=[]
+train_y=[]
+for i in range(1,6):
+  with open('data/data_batch_'+str(i), 'rb') as fo:
+      dicto = pickle.load(fo, encoding='bytes')
+  train_x.append(dicto[b'data'])
+  train_y.append(dicto[b'labels']);
+
+train_x=tf.concat(train_x,axis=0)
+train_x=tf.reshape(train_x,[50000,3,32,32])
+train_x=tf.transpose(train_x,[0,2,3,1])
+train_y=tf.concat(train_y,axis=0)
+
+test_x=[]
+test_y=[]
+with open('data/test_batch', 'rb') as fo:
+    dicto = pickle.load(fo, encoding='bytes')
+test_x.append(dicto[b'data'])
+test_y.append(dicto[b'labels']);
+
+test_x=tf.concat(test_x,axis=0)
+test_x=tf.reshape(test_x,[10000,3,32,32])
+test_x=tf.transpose(test_x,[0,2,3,1])
+test_y=tf.concat(test_y,axis=0)
+```
+
+
+### a)
+
+O conjunto de dados consiste em $60.000$ imagens coloridas de tamanho $32\times 32$ (a dimensão de cada imagem é $3\times 32\times 32$), sendo $50.000$ destas imagens destinadas ao processo de ajuste/treino do modelo e as demais para teste. O arquivo utilizado oferece as imagens dividas em $6$ arquivos, sendo que cada arquivo contém uma matriz de dimensão $10.000 \times 3072$ com valores inteiro (*uint8*) variando de $0$ a $255$. Além das imagens, cada um dos arquivos contém também uma matriz com o *label* de cada elemento da amostra, sendo que, ao todo, temos $10$ classes distintas e auto-excludentes: *airplane*, *automobile*, *bird*, *cat*, *deer*, *dog*, *frog*, *horse*, *ship* e *truck*.
+
+Vale destacar que, como pode ser visto na página do conjunto de dados, não há interseção entre a classe *automobile* e *truck*, pois esta última contém apenas caminhões grandes e estes não estão incluidos na classe *automobile*.
+
+### b)
+
+```{python}
+img=train_x[:10]
+
+fig=plt.figure(figsize=(5*5,5*2))
+
+for i in range(10):
+  splot=fig.add_subplot(2, 5, i+1)
+  splot.tick_params(
+      axis='both',
+      which='both',
+      bottom=False,
+      top=False,
+      left=False,
+      right=False,
+      labelbottom=False,
+      labelleft=False)
+  placeholder=splot.imshow(img[i])
+  
+fig.tight_layout(pad=5)
+plt.show()
+```
+
+### c)
+
+```{python}
+train_x,test_x=tf.cast(train_x,'float32')/255,tf.cast(train_x,'float32')/255
+```
+
+### d)
+
+```{python}
+val_x,val_y=train_x[-10000:],train_y[-10000:]
+train_x,train_y=train_x[:-10000],train_y[:-10000]
+```
+A seguir, criamos $3$ modelos segundo as especificações do enunciado, ademais, em cada modelo foram utilizados:
+
+- Ativação *relu* em todas as camadas exceto a última, onde foi usado a função de ativação *softmax*;
+- $32$ filtros com dimensão $5\times 5$ em cada camada convolucional;
+- $128$ neurônios em todas as camadas densas exceto a última.
+- $10$ neurônios na última camada;
+- *Max Pooling* com *stride* $2 \times 2$ imediatamente antes da aplicação das camadas densas;
+- *Categorical Cross Entropy* como função de custo.
+
+No treino utilizamos:
+
+- A variante *Adam* do *SGD*;
+- *Batches* de $512$ imagens;
+- Taxa de aprendizado $\lambda=10^{-3}$;
+- $200$ *epochs* no treino.
+
+Mais detalhes sobre cada modelo podems ser encontrados abaixo:
+
+```{python}
+# Este "n" está aqui apenas para gerar o PDF,
+# o treino real é feito com "n=200" e salvo em um arquivo.
+n=1
+
+models=[]
+for i in range(1,4):
+  models.append(tf.keras.Sequential(
+    [tf.keras.layers.Conv2D(32,[5,5], activation='relu') for j in range(i+1)]+
+    [tf.keras.layers.MaxPooling2D((2,2))]+
+    [tf.keras.layers.Flatten()]+
+    [tf.keras.layers.Dense(128, activation='relu') for j in range(3)]+
+    [tf.keras.layers.Dense(10, activation='softmax')],
+    name='Modelo_'+str(i))
+    )
+  models[-1].compile(loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+                optimizer=tf.keras.optimizers.Adam(1e-3),
+                metrics=['accuracy'])
+history=[]
+
+for model in models:
+  history.append(
+    model.fit(train_x,
+              train_y,
+              batch_size=64,
+              epochs=n,
+              verbose=0,
+              validation_data=(val_x,val_y),
+              shuffle=False)
+                    );
+  print(model.summary());
+```
+
+```{python include=FALSE}
+import dill
+with open('train_data1.csv','rb') as file:
+    best_acur_table,epoch1,epoch2,epoch3=dill.load(file);
+    
+n=len(epoch1)
+```
+
+```{r echo=FALSE}
+library(ggplot2)    # Versão 3.3.5
+library(latex2exp)  # Versão 0.5.0
+library(reticulate) # Versão 1.20
+library(kableExtra) # Versão 1.3.4
+
+ggplot()+
+  geom_line(aes(x=1:py$n,y=py$epoch1,color='Modelo 1'))+
+  geom_line(aes(x=1:py$n,y=py$epoch2,color='Modelo 2'))+
+  geom_line(aes(x=1:py$n,y=py$epoch3,color='Modelo 3'))+
+  scale_color_hue('')+
+  scale_y_continuous('Acurácia (conjunto de treino)')+
+  scale_x_continuous('Epoch')+
+  theme_bw()
+```
+
+```{r echo=FALSE}
+#### R ####
+tab_data=data.frame(1:3,
+                    paste(round(py$best_acur_table[1,],4)*100,'\\%'),
+                    paste(round(py$best_acur_table[2,],4)*100,'\\%'))
+
+kable(tab_data,
+      format="latex",
+      align = "c",
+      booktabs=T,
+      escape=F,
+      col.names=linebreak(c('Modelo','Treino','Validação'))) %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+Claramente o modelo $1$ foi o que obteve melhor performance tanto no conjunto de treino quanto de validação, portanto vamos escolher este como base para o nosso modelo final. É de se destacar que o aumento da complexidade da arquitetura não trouxe aumento no desempenho, isso é estranho, pois, como veremos adiante, parece que a capacidade do modelo é muito baixa para o conjunto de dados, o que nos dá a entender que o motivo para o qual o modelo $1$ tem performace superior aos outros não é porque ele possui a capacidade necessária para lidar com o problema e sim por que o aumento da profundidade da rede está inviabilizando o treino. Para solucionar esse problema, o mais adequado seria mudar a arquitetura, usando *Inception* ou outro tipo de rede mais sofisticada.
+
+### e)
+
+Para este item, ajustamos o modelo escolhido anteriormente adicionando duas camadas de *dropout* com taxa $0.25$ (probabilidade de $25\%$ de cada neurônio ser anulado), sendo que a primeira destas camadas foi colocada no início, logo antes da primeira camada de convolução, já a segunda foi colocada imediatamente antes da camada de *output*. O resultado do treino pode ser encontrado na tabela a seguir:
+
+```{python include=FALSE}
+import dill
+with open('train_data2.csv','rb') as file:
+    epoch4,val4=dill.load(file);
+```
+
+```{r echo=FALSE}
+#### R ####
+tab_data=rbind(tab_data,c('Modelo final',
+                          paste(round(max(py$epoch4),4)*100,'\\%'),
+                          paste(round(max(py$val4),4)*100,'\\%')))
+
+kable(tab_data,
+      format="latex",
+      align = "c",
+      booktabs=T,
+      escape=F,
+      col.names=linebreak(c('Modelo','Treino','Validação'))) %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+Curiosamente, após a adição do *dropout* o desempenho do modelo piorou no conjunto de validação, o que não era esperado, é possível que a arquitetura utilizada não tenha a capacidade adequada para lidar com imagens deste nível de complexidade, desta forma, o melhor que a rede consegue aprender a partir do conjunto de treino é o próprio dado, sendo este realmente o caso, não há muito que o *droupout* (ou qualquer outra regularização) possa fazer, seria necessário aumentar a capacidade da rede com mais camadas ou mais neurônio, porém, por limitações computacionais, não consegui treinar um modelo que performace significativamente melhor a tempo da entrega da lista.
