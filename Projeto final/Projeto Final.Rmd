@@ -1,0 +1,1120 @@
+---
+title: ""
+author: ""
+date: ""
+output: pdf_document
+extra_dependencies: ["float"]
+header-includes:
+  - \usepackage{float}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.pos = "!H", out.extra = "")
+```
+
+```{r}
+# Este código deve ser usado no RStudio integrado a algum Kernel do Python.
+# A versão do RStudio usada é 1.4.1717.
+# A versão do knitr usada é 1.33.
+library(ggplot2)    # Versão 3.3.5
+library(latex2exp)  # Versão 0.5.0
+library(reticulate) # Versão 1.20
+library(kableExtra) # Versão 1.3.4
+```
+
+\large \begin{center}
+	\textbf{UNIVERSIDADE FEDERAL DO RIO DE JANEIRO}\\
+	
+Instituto de Matemática\\
+
+Tópicos especiais em estatística C\\
+
+\vspace{250 pt}
+
+\textbf{{\Large Visualizando \emph{inputs} codificados por \emph{Autoencoders}}}\\
+
+Projeto final\\
+
+\vspace{160 pt}
+\begin{flushright}
+	\textbf{Aluno:} Silvaneo Vieira dos Santos Junior\\
+	
+	\textbf{Professor:} Carlos Tadeu Pagani Zanini\\
+	
+	
+\end{flushright}
+\vspace{100 pt}
+
+Rio de Janeiro, 20 de outubro de 2021.
+
+\end{center}
+
+\pagebreak
+
+
+# Introdução
+
+Este trabalho consiste no uso de Autoenconder$^{[1]}$ para a obtenção de interpretações visuais de imagens. O conjunto utilizado se trata do *MNIST*$^{[2]}$, sendo o objetivo principal deste projeto criar uma codificação bidimensional para cada imagem do conjunto, de forma que grupos de dígitos semelhantes estejam próximos uns dos outros e, posteriormente, tentar gerar novos dígitos a partir dos modelos treinados.
+
+Todas as redes foram treinadas com o auxílio do *TensorFlow 2.6.0* e o *Keras*, sendo que os códigos utilizados podem ser encontrados no apêndice.
+
+\pagebreak
+
+# Análise inicial dos dados
+
+Antes de começarmos com o ajuste dos modelos, é válido explorar o conjunto de dados em questão. Como é bem conhecido na literatura de *Machine Learning*, o conjunto *MNIST* é composto $70.000$ imagens de dígitos escritos à mão ($60.000$ no conjunto de treino e $10.000$ no conjunto de teste), sendo cada imagem de dimensão $28\times 28$ e acompanhadas de um *label* (de $0$ a $9$) representando a classificação do dígito. Adiante temos $12$ exemplos de imagens pertencentes ao conjunto de dados:
+
+
+```{r, echo = FALSE}
+#### R ####
+data_train=read.csv('mnist_train.csv',header=F)
+train_x=data_train[1:12,2:785]
+```
+
+```{r, echo = FALSE}
+
+library(ggplot2)
+library(tidyr)
+
+#### R ####
+mat=as.data.frame(matrix(train_x[1,],28,28))
+names(mat)=c(1:28)
+mat$Row=c(1:28)
+mat$Index=1
+data=as.data.frame(pivot_longer(mat,c(1:28)))
+for(i in c(2:12)){
+  mat=as.data.frame(matrix(train_x[i,],28,28))
+  names(mat)=c(28:1)
+  mat$Row=c(1:28)
+  mat$Index=i
+  data=rbind(data,as.data.frame(pivot_longer(mat,c(1:28))))
+}
+
+data$name=as.numeric(data$name)
+data$value=as.numeric(data$value)
+data$Index=as.factor(data$Index)
+ggplot(data)+
+  geom_tile(aes(x=Row,y=name,fill=value))+
+  scale_fill_gradient(high='#000000',low='#ffffff')+
+  guides(fill='none')+
+  facet_wrap(~Index)+
+  theme_void()+
+  theme(strip.background = element_blank(),
+        strip.text.x = element_blank())
+```
+
+\pagebreak
+
+Para ajudar no treino das redes e evitar *overfitting*, fizemos uma expansão do conjunto de dados aplicando algumas transformações (pequenas rotações e translações) conforme proposto em $[3]$. Após as transformações, obtemos um conjunto de treino de $250.000$ imagens, sendo $12$ delas exibidas adiante:
+
+
+
+```{python, echo = FALSE}
+from mlxtend.data import loadlocal_mnist
+import config
+import numpy as np
+import dill
+
+file=open('C:\\Jupyter\\Experimentos\\MNist\\MNist_classifica\\mnist_expanded.dill','rb')
+expanded_training_data, validation_data, test_data=dill.load(file)
+file.close()
+
+dataset=np.asarray(expanded_training_data[0]).T
+y=np.asarray(expanded_training_data[1])
+
+labels=np.array([[0]*len(dataset[0])]*10,dtype=config.float_type)
+
+for i,j in enumerate(y):
+    labels[j,i]=1
+
+teste_data=np.asarray(test_data[0]).T
+y=np.asarray(test_data[1])
+
+labels_teste=np.array([[0]*len(teste_data[0])]*10,dtype=config.float_type)
+
+for i,j in enumerate(y):
+    labels_teste[j,i]=1
+    
+dataset=dataset.T
+labels=labels.T
+teste_data=teste_data.T
+labels_teste=labels_teste.T
+```
+
+```{r, echo = FALSE}
+
+library(ggplot2)
+library(tidyr)
+library(reticulate)
+
+#### R ####
+mat=as.data.frame(matrix(py$dataset[1,],28,28))
+names(mat)=c(1:28)
+mat$Row=c(1:28)
+mat$Index=1
+data=as.data.frame(pivot_longer(mat,c(1:28)))
+for(i in c(2:12)){
+  mat=as.data.frame(matrix(py$dataset[i,],28,28))
+  names(mat)=c(28:1)
+  mat$Row=c(1:28)
+  mat$Index=i
+  data=rbind(data,as.data.frame(pivot_longer(mat,c(1:28))))
+}
+
+data$name=as.numeric(data$name)
+data$value=as.numeric(data$value)
+data$Index=as.factor(data$Index)
+ggplot(data)+
+  geom_tile(aes(x=Row,y=name,fill=value))+
+  scale_fill_gradient(high='#000000',low='#ffffff')+
+  guides(fill='none')+
+  facet_wrap(~Index)+
+  theme_void()+
+  theme(strip.background = element_blank(),
+        strip.text.x = element_blank())
+```
+
+\pagebreak
+
+Um último ponto a ser abordado é sobre a escala dos dados. O conjunto de dados original possui $784$ entradas com valores *uint8*, variando de $0$ a $255$, naturalmente, é adequado fazer uma normalização dos dados, de modo que duas propostas de escala se destacam:
+
+\begin{enumerate}
+\item \textbf{Escala de $0$ a $1$}: Esta opção consiste em dividir os valores observados nos dados por $255$, de modo que os valores de cada elemento do conjunto de treino estejam contidos no intervalo $[0,1]$. Essa escolha de escala apresenta duas vantagens principais, a primeira sendo o uso dos dados em um formato de fácil interpretação, de modo que a rede estará lidando diretamente com os dados sem distorções, isto pode evitar que o \emph{Autoencoder} crie uma representação que não tem significado relevante para o problema abordado, mas que minimize a função de perda. A segunda vantagem dessa opção é a possibilidade de se usar a função de custo \emph{Binary Cross Entropy} juntamente com a função de ativação \emph{Sigmoid}, sendo que o uso desta função de custo é vantajoso, pois ela diminui a propensão da rede a saturar em valores extremos$^{[3]}$ ($0$ e $1$). Vale ressaltar que, infelizmente, não conseguimos encontrar uma interpretação para os dados que justifique (do ponto de vista teórico) o uso da \emph{Binary Cross Entropy}, temos apenas a heurística acima para validar o uso desta função de custo.
+
+\item \textbf{Escala normalizada}: Esta opção consiste em fazer a normalização dos valores observados, isto é, para cada \emph{pixel}, subtraímos a média e dividimos pelo desvio padrão daquele \emph{pixel} (no caso onde o desvio padrão é $0$, nenhuma transformação é feita). Podemos destacar duas vantagens no uso desta escala, a primeira é que a rede não precisará aprender a média dos valores, facilitando assim o aprendizado, a segunda é que, com a padronização, todos os \emph{pixels} passam a ter uma escala comparável, desta forma, a relevância de cada \emph{pixel} na função de custo será relevada pela sua variabilidade (erros de representação associados a partes da imagem que tem maior variabilidade serão menos relevantes).
+
+\end{enumerate}
+
+As duas abordagens acima foram testadas, sendo que a segunda produziu melhores resultados, desta forma, ao longo do restante do trabalho, abordaremos os modelos treinados com os dados normalizados.
+
+\pagebreak
+
+# Modelo 1
+
+O Modelo 1 consiste em um *Autoencoder*, isto é, em uma rede neural cuja arquitetura tem "formato de ampulheta" (a dimensão das ativações vai diminuindo do início até a metade da rede e daí vai aumentando até chegar na saída) com o *input* igual ao *output*, de modo que o Modelo 1 tentará fazer uma aproximação da função identidade sob certas restrições, gerando como subproduto um vetor que carrega a informação "compactada" do *input*.
+
+Todas as arquiteturas utilizadas seguem o seguinte esquema:
+
+\begin{enumerate}
+\item \textbf{Camada de reorganização}: Tranforma o \emph{input} com dimensão $n\times 784$ em um \emph{tensor} com dimensão $n \times 28 \times 28 $.
+
+\item \textbf{Camada de convolução}: $a$ filtros de tamanho $3 \times 3$ com função de ativação $f_{middle}$. Ativação com dimensão $n \times 26 \times 26 \times a $.
+
+\item \textbf{Camada de Average Pooling}: Pooling com dimensão $2\times 2$. Ativação com dimensão $n \times 13 \times 13 \times a $.
+
+\item \textbf{Camada de convolução}: $b$ filtros de tamanho $4 \times 4$ com função de ativação $f_{middle}$. Ativação com dimensão $n \times 10 \times 10 \times b $.
+
+\item \textbf{Camada de Average Pooling}: Pooling com dimensão $2\times 2$. Ativação com dimensão $n \times 5 \times 5 \times b $.
+
+\item \textbf{Camada de "achatamento"(\emph{flatten})}: Recebe um \emph{input} com dimensão $n \times 5 \times 5 \times b $ e transforma em um \emph{tensor} de dimensão $n\times 25b$.
+
+\item \textbf{Camada densa}: $256$ neurônio com função de ativação $f_{middle}$.
+
+\item \textbf{Camada de codificação (densa)}: $2$ neurônio com função de ativação $f_{encode}$.
+
+\item \textbf{Camada densa}: $256$ neurônio com função de ativação $f_{middle}$.
+
+\item \textbf{Camada densa}: $25b$ neurônio com função de ativação $f_{middle}$.
+
+\item \textbf{Camada de reorganização}: Tranforma o \emph{input} com dimensão $n\times 25b$ em um \emph{tensor} com dimensão $n \times 5 \times 5 \times b$.
+
+\item \textbf{Camada de convolução transposta}: $a$ filtros de tamanho $5 \times 5$ com função de ativação $f_{middle}$ e \emph{strides} com dimensão $2\times 2$. Ativação com dimensão $n \times 13 \times 13 \times b $.
+
+\item \textbf{Camada de convolução transposta}: $1$ filtros de tamanho $4 \times 4$ com função de ativação $f_{middle}$ e \emph{strides} com dimensão $2\times 2$. Ativação com dimensão $n \times 28 \times 25 \times b $.
+
+\item \textbf{Camada de convolução transposta}: $1$ filtros de tamanho $1 \times 1$ com função de ativação $f_{end}$ e \emph{strides} com dimensão $1\times 1$. Ativação com dimensão $n \times 28 \times 28 \times b $.
+
+\item \textbf{Camada de "achatamento"}: Recebe um \emph{input} com dimensão $n \times 28 \times 28 \times 1 $ e transforma em um \emph{tensor} de dimensão $n\times 784$.
+\end{enumerate}
+
+A arquitetura acima serviu como base para todas as variações testadas, sendo estas baseadas nas escolhas dos parâmetros $a$, $b$ , $f_{middle}$ e $f_{encode}$ ($f_{end}$ é definido segundo a escala dos dados, sendo igual à *Sigmoid* na escala de $0$ a $1$ e igual à identidade na escala padronizada).
+
+Observe que a arquitetura foi escolhida de forma que há uma certa simetria nas ativações (a dimensão das ativações da segunda metade da rede é igual a dimensão das ativações da primeira metade, porém com a ordem inversa), sendo que, neste caso, o *stride* com dimensão $2\times 2$ nas camadas de Convolução Transposta tem o papel de "desfazer o que as camadas de *Average Pooling* fazem".
+
+Adiante listaremos quais os valores testados para cada parâmetro, sendo que cada uma das combinações de valores descritos foram testadas:
+
+\begin{itemize}
+\item $a \in \{16,32,64\}$
+\item $b \in \{16,32,64\}$
+\item $f_{middle}$ como \emph{relu}, \emph{elu} e \emph{tanh}.
+\item $f_{encode}$ como identidade, \emph{sigmoid} e \emph{tanh}.
+\end{itemize}
+
+Seria demasiadamente exaustivo listar o resultado de cada combinação testada ($81$ modelos distintos), por isso no limitaremos a informar que a escolha que gerou melhores resultados foi com $a=32$, $b=16$, $f_{middle}$ igual à *elu* e  $f_{encode}$ igual à identidade. Vale ressaltar que valores maiores de $a$ e $b$ que os ideias também deram bons resultados (pelo menos tão bons quanto os outros), porém, pelo princípio da parcimônia, optamos por manter o modelo mais simples e com resultados próximos aos modelo mais complexos.
+
+Além das restrições impostas pela arquitetura, também foi necessário regularizar a rede através da penalização dos valores da camada de codificação, do contrário, os valores codificados ficariam excessivamente dispersos e numericamente instáveis. Adiante temos o gráfico da codificação gerada por uma rede neural treinada com a arquitetura acima, mas sem regularizações adicionais:
+
+\begin{figure}[H]
+  \includegraphics{Unbound1.png}
+  \caption{Codificação gerada por uma rede sem regularizações adicionais. Observe que a escala das codificações está muito alta (de -80 à 50 no eixo $y$ e de -30 à 30 no eixo $x$).}
+\end{figure}
+
+Para solucionar o problema acima, adicionamos uma regularização $L_2$ na ativação da camada de codificação, sendo que testamos vários pesos para esta penalização. Adiante, exibimos o resultado da codificação para três valores (pesos) distintos para a regularização:
+
+\begin{figure}[H]
+  \includegraphics{Model1_final.png}
+  \caption{Codificação com peso $10^{-3}$ para a regularização.}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{TooBounded.png}
+  \caption{Codificação com peso $10^{-2}$ para a regularização.}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{Model1_3.png}
+  \caption{Codificação com peso $10^{-1}$ para a regularização.}
+\end{figure}
+
+Para pesos superiores aos mostrados acima, os valores das codificações ficam muito baixos, sem que haja qualquer aumento na qualidade da codificação, de fato, para pesos superiores a $0.1$, todos os números ficam concentrados em apenas um ponto e a representação dos dígitos pela rede neural fica restrita à média dos dados de treino, optamos então por tomar o peso $0.1$ para o treinamento do modelo final.
+
+Preliminarmente, já podemos observar que números parecidos estão relativametne próximos uns dos outros, sendo, inclusive, possível perceber certos *cluster* de dígitos (como o grupo do $7$, do $4$ e do $1$). Discutiremos mais sobre este assunto nas sessões finais, após o ajuste de todos os modelos, mas, desde já, temos resultados promissores.
+
+Por último, antes de exibirmos os dígitos codificados, vale detalhar um pouco mais a configuração de treino da rede. Separamos o conjunto de treino em dois conjuntos, um para o treino propriamente dito (com $240.000$ amostras) e o outro para validação (com $10.000$ amostras), sendo que o conjunto de teste permanece o mesmo do *MNIST* original. Usamos a variação *Adam* do *SGD*, com parâmetros *default* e taxa de aprendizado seguindo a seguinte agenda: $10^{-2}$ nas primeiras $10$ *epochs*, $10^{-3}$ nas $10$ *epochs* seguintes e $10^{-4}$ nas $10$ *epochs* finais. Destaco que não foram necessárias mais de $30$ *epochs*, sendo que, em grande parte, isto se deve ao aumento do conjunto de dados (como o conjunto de dados é maior, cada *epoch* tem mais passos do que uma *epoch* usando o *MNIST* original), ademais, usamos um *Batch size* de $512$ amostras.
+
+Adiante temos $5$ dígitos exibidos ao lado de suas respectivas representações pela rede neural:
+
+\begin{figure}[H]
+  \includegraphics{Encoded_model1.png}
+  \caption{Dígitos do conjunto de teste (em cima) e suas respectivas representações pela rede neural (em baixo).}
+\end{figure}
+
+Apesar das representações não serem perfeitas, não há dúvidas de que são bem razoáveis, sendo que a única representação inadequada é a do último dígito, sendo um $4$ representado como um $9$, porém, mesmo este erro é razoável, visto que estes dois dígitos são razoavelmente semelhantes.
+
+\pagebreak
+
+# Modelo 2
+
+Este modelo consiste de um *Autoencoder*, de forma semelhante ao modelo anterior, porém com última camada de codificação tem mais neurônios, sendo que usaremos esta codificação como entrada de outro método de redução de dimensão. Como o resultado anterior já foi razoavelmente bom, parece desnecessário acrescentar muitos neurônio na codificação, desta forma, manteremos a mesma arquitetura e configuração de antes, alterando levemente a quantidade de neurônios na camada de codificação. Testamos três valores para a quantidade de neurônios na camada intermediária da rede, sendo estes $5$, $10$ e $20$, adiante exibimos os resultados para o modelo com $5$ neurônios:
+
+\begin{figure}[H]
+  \includegraphics{Resultado duvidoso.png}
+  \caption{Dígitos em representação bidimensional.}
+\end{figure}
+
+Claramente a separação está muito boa, de fato, é possível separar os dígitos quase que exclusivamente através do eixo $x$, porém, observe que os grupos de números estão em ordem crescente, o que é muito suspeito! Faz-se então necessário verificar se o resultado acima é reprodutível, pois, como já diz a sabedoria popular, "quando a esmola é muita, até o Santo desconfia". Adiante temos o resultado da representação bidimensional para o mesmo modelo treinado novamente desde o início:
+
+\begin{figure}[H]
+  \includegraphics{Model2_5.png}
+  \caption{Dígitos em representação bidimensional.}
+\end{figure}
+
+Veja que o resultado deixa muito a desejar em relação ao que foi obtido na primeira tentativa, de fato, tentamos exaustivamente reproduzir o resultado acima, mas sem sucesso... Foi realizada também um revisão minuciosa do código em busca de possíveis erros, porém nada foi encontrada, desta forma, infelizmente, não conseguimos concluir se o resultado acima foi fruto de sorte ou de algum erro de código (vale ressaltar que, devido ao problema com a semente de aleatoriedade do *TensorFlow*, não é possível re-gerar a rede que deu origem à codificação inicial).
+
+Posto a excentricidade do resultado inicial de lado, de modo geral, temos que o Modelo 2 com $5$ neurônios na camada intermediária teve um resultado inferior ao obtido pelo Modelo 1.
+
+No gráfico a seguir temos os resultados obtidos pelo Modelo 2 com $10$ e $20$ parâmetros, respectivamente:
+
+\begin{figure}[H]
+  \includegraphics{Model2_10.png}
+  \caption{Dígitos em representação bidimensional para o modelo com $10$ neurônios.}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{Model2_20.png}
+  \caption{Dígitos em representação bidimensional para o modelo com $20$ neurônios.}
+\end{figure}
+
+Podemos observar que não há melhorias significativas na qualidade do agrupamento com o aumento do número de neurônios na codificação, ademais, apesar de que dígitos semelhantes são representados relativamente próximos uns dos outros, temos que o Modelo 1 tem um resultado superior ao obtido com os modelos desta sessão.
+
+Vale observar que parece ser possível classificar os dígitos de forma satisfatória com o Modelo 2 sem que seja utilizado qualquer supervisão. Por "parece ser possível", não quero dizer que este resultado foi obtido, mas que há indícios de que, com mais trabalho, possamos obter um resultado interessante. Para exemplificar esse ponto, adiante apresentamos a representação das ativações da camada de codificação para o Modelo 2 com $10$ com neurônios:
+
+\begin{figure}[H]
+  \includegraphics{Encoded_values_10.png}
+  \caption{Representação da ativação dos neurônios da camada intermediária. Na primeira linha temos, da esquerda para a direita, os neurônio de $1$ a $5$ e na segunda linha os neurônio de $6$ a $10$.}
+\end{figure}
+
+As imagens acima são geradas da seguinte forma: Criamos um vetor de $10$ coordenadas com uma coordenada igual a $1$ e as demais nulas, em seguida passamos este vetor como entrada para a decodificação (ou seja, tratamos este vetor como a ativação na camada intermediária da rede e seguimos com o processamento das camadas posteriores). A ideia é apresentar quais são os valores que "ativam" cada neurônio a partir de quais elementos da imagem cada um deles representa.
+
+Na imagem acima, podemos indenficar claramente alguns dígitos ($2$,$3$ e $1$), sendo que há fortes semelhanças entre as outras imagens e alguns dígitos, desta forma, parece razoável que possamos criar uma rede na qual cada camada representa um, e apenas um, dígito distinto, sendo então necessário estudar funções de ativações (a *softmax* me parecem mais promissora) e regularizações (a regularização proposta em $[4]$ parece adequada) para a camada de codificação, afim de induzir a rede a representar um dígito por neurônioi na codificação. Naturalmente, esse tópico foge um pouco do escopo do trabalho, pois aborda, essencialmente, agrupamento não-supervisionado (e não a visualização de características), porém acredito que esta seria uma ótima proposta de extensão para este projeto.
+
+\pagebreak
+
+# Modelo 3
+
+O próximo modelo é, também, semelhante ao Modelo 1, porém, desta vez, o *output* da rede deve ser a classificação do dígito diretamente. A ideia é induzir a rede a criar uma representação bidimensional dos dados já tendo em mente que cada elemento da amostra deve pertencer a uma categoria. Como a arquitetura usada no Modelo 1 se mostrou muito eficiente para a codificação, partiremos dela para a criação deste novo modelo, especificamente, usaremos a mesma arquitetura do primeiro Modelo 1 até a camada central, dali em diante, tentaremos $3$ variações do modelo: Na primeira, usaremos apenas uma camada com $10$ neurônios e ativação *softmax* para a decodificação; na segunda, usaremos uma camada com $16$ neurônios e ativação $elu$ seguida de uma camada com $10$ neurônio e ativação *softmax*; por último, usaremos um modelo com $2$ camadas de $16$ neurônios e ativação $elu$ seguidas por uma camada com $10$ neurônios e ativação *softmax*.
+
+Cada uma das variações propostas foram treinadas com a mesma configuração de treino dos modelo $1$ e $2$, sendo que a acurácia de cada um dos modelos pode ser verificada na tabela a seguir:
+
+```{r echo=FALSE}
+tab_data=data.frame(1:3,
+                    c('91.40\\%','99.22\\%','98.89\\%'),
+                    c('90.86\\%','98.72\\%','98.33\\%'),
+                    c('91.22\\%','98.30\\%','98.23\\%')
+                    )
+
+kable(tab_data,
+      format="latex",
+      align = "c",
+      booktabs=T,
+      escape=F,
+      col.names=linebreak(c(linebreak('Quantidade de camadas\npara decodificação'),'Treino','Validação','Teste'))) %>%
+  kable_styling(position = "center") %>%
+  kable_styling(latex_options = "HOLD_position")
+```
+
+Veja que o modelo com $2$ camadas para decodificação foi o que teve melhor performance, mesmo tendo um *overfitting* razoável, desta forma, a princípio, este parece ser o modelo mais promissor.
+
+Adiante temos o gráfico da codificação gerada por cada um dos modelos:
+
+\begin{figure}[H]
+  \includegraphics{Model3_1.png}
+  \caption{Codificação gerada pelo modelo com uma camada de decodificação.}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{Model3_2.png}
+  \caption{Codificação gerada pelo modelo com duas camadas de decodificação.}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{Model3_3.png}
+  \caption{Codificação gerada pelo modelo com três camadas de decodificação.}
+\end{figure}
+
+
+Observe que, como indicado pela acurácia, o Modelo com $2$ camadas produziu a representação com melhor agrupamento, sendo que, no modelo com $3$ camadas, o agrupamento também é bom, mas os dados ficam mais dispersos. A representação no modelo com $1$ camada é também bastante interessante, pois, apesar de ser inferior as demais, este modelo parece organizar os dígitos em um círculo com centro na origem, de modo que o *label* do dígito parece estar associado com o ângulo do vetor que o representa.
+
+Vale destacar que cada um dos modelos acima foi treinado do início ao menos $3$ vezes, afim de garantir a reprodutibilidade dos resultados observados.
+
+\pagebreak
+
+# Modelo Híbrido e geração artificial de dígitos
+
+Infelizmente, o Modelo 3, que apresentou melhores resultados, não pode ser usado para a geração de dígitos, pois a camada de decodificação tem como *output* a classificação, desta forma, mesmo que geremos aleatoriamente valores para a codificação, não poderemos usar estas codificações para gerar dígitos. Posto isso, o modelo 1 (que permite a geração de dígitos) também não pode ser usado, pois apresentou resultados muito insatisfatórios. Para solucionar este problema, vamos propor um último modelo, chamado de Model Híbrido, sendo este a junção dos modelo 1 e 3, mais especificamente, manteremos as camadas de codificação (que são comuns aos dois modelos) e criaremos uma rede com dois *outputs* e duas funções de custo. Para esclarecer a arquitetura do Modelo Híbrido, exibiremos um grafo representando o modelo:
+
+\begin{figure}[H]
+  \includegraphics{Diagrama.png}
+  \caption{Diagrama do Modelo Híbrido.}
+\end{figure}
+
+No diagrame acima podemos perceber  que os dois modelos irão compartilhar a codificação, desta forma, ao gerar uma codificação, temos tanto a previsão do *label* daquela imagem quanto uma representação para a imagem que gerou aquela codificação. Vale observar que, para a obtenção de um melhor resultado, foi necessário dar um peso maior para a função de custo do Modelo 3. Adiante exibiremos a Codificação dos dígitos pela rede de forma análoga ao que foi feito com os modelos anteriores:
+
+\begin{figure}[H]
+  \includegraphics{Modelo final parcial.png}
+  \caption{Codificação de alguns dígitos com o modelo híbrido.}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{Modelo hibrido completo.png}
+  \caption{Codificação de todos os dígitos no conjunto de teste com o modelo híbrido.}
+\end{figure}
+
+A partir dos gráficos acima, temos que o Modelo Híbrido, mesmo tendo uma codificação mais dispersa que o Modelo 3, tem um resultado muito satisfatório em relação ao agrupamento dos dados, desta forma, podemos usar este modelo para gerar dígitos artificiais. Vale destacar que o desempenho do Modelo Híbrido na tarefa de classificação dos dígitos foi comparável ao observado na sessão anterior, sendo que ele acertou em $99.06\%$ do conjunto de treino, em $98.33\%$ do conjunto de validação e em $98.05\%$ do conjunto de teste.
+
+Antes de prosseguirmos com a geração de dígitos, vamos comparar a representação das imagens com o Modelo 1 e com o Modelo Híbrido:
+
+\begin{figure}[H]
+  \includegraphics{Encoded_model_hibrid.png}
+  \caption{Imagens originais (primeira linha), representação pelo Modelo 1 (segunda linha) e representação pelo Modelo Híbrido (terceira linha).}
+\end{figure}
+
+Observe que a representação pelo Modelo Híbrido não só é comparável com a do Modelo 1, como é, de fato, superior, tendo o dígito $4$ uma representação muito mais adequada. A melhoria na representação pode ser explicada pela adição da informação do *label*: Para o Modelo 1, o quatro e o nove tinham a codificação parecida, pois eram semelhantes visualmente, ao ponto que, para o modelo, não havia necessidade de separar os dois grupos, porém, para o Modelo Híbrido, mesmo que as duas imagens sejam visualmente parecidas, os *labels* são diferentes, desta forma, o *Autoencoder* é "obrigado" a separa-los na codificação e, uma vez separados, é natural que a sua representação fique diferente. De modo geral, pudemos observar que a adição da função de custo do Modelo 3 ajudou melhor bastante a qualidade das representações (em comparação com  apenas o uso da função de custo do Modelo 1).
+
+Por fim, sobre a criação de dígitos artificiais, podemos prosseguir da seguinte forma:
+
+\begin{enumerate}
+
+\item Escolhemos o dígito que desejamos criar.
+\item Calculamos a codificação média para o conjunto daqueles dígitos.
+\item Criamos a representação do novo dígito somando a média calculada no item anterior com um ruído Normal (idealmente, deve-se gerar um ruído Normal bivariado com média $0$ e matriz de covariância igual à matriz de covariância do conjunto corresponte ao dígito que será criado).
+\item Decodificamos a representação usando a parte do Modelo Híbrido correspondente ao Modelo 1.
+
+\end{enumerate}
+
+Adiante temos $5$ exemplos de números criados artificialmente para cada dígito de $0$ a $9$, sendo que no canto superior esquerdo são apresentados os valores das codificações usadas para criar cada dígito:
+
+\begin{figure}[H]
+  \includegraphics{digito0.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito1.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito2.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito3.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito4.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito5.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito6.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito7.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito8.png}
+\end{figure}
+
+\begin{figure}[H]
+  \includegraphics{digito9.png}
+\end{figure}
+
+Uma parcela considerável dos dígitos criados deixam a desejar em comparação aos dados originais, ainda assim, em alguns casos (como nos dígitos $7$ e $9$), as imagens geradas são boas, tendo um grau decente de variação entre as figuras sem que haja degeneração do dígito. Essencialmente, é relativamente difícil gerar dígitos que sejam variados e não-degenerados, pois para aumentar a diversidade dos números criados é necessário aumentar a variância do ruído, desta forma, aumentar a variabilidade dos dígitos faz com que a imagem criada fique mais propensa a degenerações.
+
+\pagebreak
+
+# Conclusões
+
+A partir das análise realizadas ao longo do trabalho, temos que foi possível obter um resultado razoável tanto em relação do agrupamento das imagens como na criação de dígitos artificias. Naturalmente, este trabalho tem muitas possibilidades de ampliação: Podemos obter resultados melhores no processo de geração de dígitos artificiais com *Generative Adversarial Networks* (*GAN*)$^{[1]}$; para o agrupamento, *Variational Autoencoders* e *Restricted Boltzmann-Machine* $[1]$ são, a princípio, promissores, alternativamente, um estudo maior pode ser feito a respeito de *Autoencoders* com dimensão de codificação superior (como sugerido no final da sessão sobre o Modelo 2). Por último, há diversas combinações de arquiteturas, funções de ativação e regularizações que poderiam aprimorar os resultados obtidos com os modelos utilizados. Posto estas considerações finais, os resultados obtidos são satisfatórios e cumprem bem o objetivo do projeto.
+
+\pagebreak
+
+# Referências
+
+\begin{enumerate}
+\item Deep Learning (Ian J. Goodfellow, Yoshua Bengio and Aaron Courville), MIT Press, 2016.
+\item http://yann.lecun.com/exdb/mnist/.
+\item Neural networks and deep learning, M Nielsen, http://neuralnetworksanddeeplearning.com/, Capítulo 3.
+\item Christopher M. Bishop: Pattern Recognition and Machine Learning, Capítulo 12.2.4.
+\end{enumerate}
+
+\pagebreak
+
+# Apêndice
+
+Código para expansão do MNIST. Este código é usado apenas uma vez, pois ele cria um arquivo que contém os dados após a expansão.
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+"""expand_mnist.py
+~~~~~~~~~~~~~~~~~~
+
+Take the 50,000 MNIST training images, and create an expanded set of
+250,000 images, by displacing each training image up, down, left and
+right, by one pixel.  Save the resulting file to
+../data/mnist_expanded.pkl.gz.
+
+Note that this program is memory intensive, and may not run on small
+systems.
+
+"""
+
+from __future__ import print_function
+
+#### Libraries
+
+# Standard library
+import _pickle as cPickle
+import dill
+import gzip
+import os.path
+import random
+
+# Third-party libraries
+import numpy as np
+
+print("Expanding the MNIST training set")
+
+if os.path.exists("mnist_expanded.pkl.gz"):
+    print("The expanded training set already exists.  Exiting.")
+else:
+    f = gzip.open("mnist.pkl.gz", 'rb')
+    training_data, validation_data,
+    test_data = cPickle.load(f,encoding='latin1')
+    f.close()
+    expanded_training_pairs = []
+    j = 0 # counter
+    for x, y in zip(training_data[0], training_data[1]):
+        expanded_training_pairs.append((x, y))
+        image = np.reshape(x, (-1, 28))
+        j += 1
+        if j % 1000 == 0: print("Expanding image number", j)
+        # iterate over data telling us the details of how to
+        # do the displacement
+        for d, axis, index_position, index in [
+                (1,  0, "first", 0),
+                (-1, 0, "first", 27),
+                (1,  1, "last",  0),
+                (-1, 1, "last",  27)]:
+            new_img = np.roll(image, d, axis)
+            if index_position == "first": 
+                new_img[index, :] = np.zeros(28)
+            else: 
+                new_img[:, index] = np.zeros(28)
+            expanded_training_pairs.append((np.reshape(new_img, 784), y))
+    random.shuffle(expanded_training_pairs)
+    expanded_training_data = [list(d) for d in zip(*expanded_training_pairs)]
+    print("Saving expanded data. This may take a few minutes.")
+    f = open("mnist_expanded.dill", "wb")
+    dill.dump((expanded_training_data, validation_data, test_data), f)
+    f.close()
+    print('Terminei')
+
+```
+
+Definindo módulo auxiliar *import_mnist.py* com o seguinte código:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+from import_mnist import *
+
+val_x=data_x[-10000:]
+val_y=data_y[-10000:]
+val_l=data_l[-10000:]
+data_x=data_x[:-10000]
+data_y=data_y[:-10000]
+data_l=data_l[:-10000]
+
+print(data_x.shape)
+print(data_y.shape)
+print(data_l.shape)
+
+print(val_x.shape)
+print(val_y.shape)
+print(val_l.shape)
+
+print(test_x.shape)
+print(test_y.shape)
+print(test_l.shape)
+
+mean=tf.math.reduce_mean(np.arcsin(data_x**0.5),axis=0,keepdims=True).numpy()
+std=tf.math.reduce_std(np.arcsin(data_x**0.5),axis=0,keepdims=True).numpy()
+
+transf=lambda x: (np.arcsin(x**0.5)-mean)/(std+10**-20)
+destransf=lambda x: np.sin(x*(std+10**-20)+mean)**2
+
+data_x=transf(data_x)
+val_x=transf(val_x)
+test_x=transf(test_x)
+```
+
+Inicializando as bibliotecas necessárias:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+
+float_type='float32'
+
+gpus= tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(gpus[0], True)
+
+def scheduler(epoch, lr):
+    if epoch < 10:
+        return 10**-2
+    elif epoch<20:
+        return 10**-3
+    else:
+        return 10**-4
+callbacks = [tf.keras.callbacks.LearningRateScheduler(scheduler)]
+```
+
+
+Importando dados:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+from import_mnist import *
+
+val_x=data_x[-10000:]
+val_y=data_y[-10000:]
+val_l=data_l[-10000:]
+data_x=data_x[:-10000]
+data_y=data_y[:-10000]
+data_l=data_l[:-10000]
+
+print(data_x.shape)
+print(data_y.shape)
+print(data_l.shape)
+
+print(val_x.shape)
+print(val_y.shape)
+print(val_l.shape)
+
+print(test_x.shape)
+print(test_y.shape)
+print(test_l.shape)
+
+# Padronização dos dados
+mean=tf.math.reduce_mean(np.arcsin(data_x**0.5),axis=0,keepdims=True).numpy()
+std=tf.math.reduce_std(np.arcsin(data_x**0.5),axis=0,keepdims=True).numpy()
+
+transf=lambda x: (np.arcsin(x**0.5)-mean)/(std+10**-20)
+destransf=lambda x: np.sin(x*(std+10**-20)+mean)**2
+
+data_x=transf(data_x)
+val_x=transf(val_x)
+test_x=transf(test_x)
+```
+
+
+Criação e ajuste do Modelo 1:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+# A penalização dos pesos não se mostrou útil, de fato, ela até atrapalhou.
+wei_reg=tf.keras.regularizers.L2(0*10**-3)
+enc_reg=tf.keras.regularizers.L2(10**-1)
+
+mid_act='elu'
+enc_act='linear'
+end_act='linear'
+
+loss=tf.keras.losses.MeanSquaredError()
+metrics=['accuracy']
+optimizer = tf.keras.optimizers.Adam(learning_rate=10**-3,
+                                     beta_1=0.9,
+                                     beta_2=0.999,
+                                     clipnorm=1.0)
+
+layers_encode=[
+    tf.keras.layers.Reshape([28,28,1]),
+    tf.keras.layers.Conv2D(32,
+                           [3,3],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Conv2D(16,
+                           [4,4],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(2,
+                          activation=enc_act,
+                          kernel_regularizer=wei_reg,
+                          activity_regularizer=enc_reg)
+]
+layers_decode=[
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(5*5*16,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Reshape([5,5,16]),
+    tf.keras.layers.Conv2DTranspose(32,
+                                    [5,5],
+                                    strides=(2,2),
+                                    activation=mid_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Conv2DTranspose(1,
+                                    [4,4],
+                                    strides=(2,2),
+                                    activation=mid_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Conv2DTranspose(1,
+                                    [1,1],
+                                    strides=(1,1),
+                                    activation=end_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Flatten()
+]
+
+enc_x=tf.keras.layers.Input([28*28])
+dec_x=tf.keras.layers.Input([2])
+
+encode=enc_x
+for layer in layers_encode:
+    encode=layer(encode)
+    
+decode_full=encode
+decode_part=dec_x
+for layer in layers_decode:
+    decode_full=layer(decode_full)
+    decode_part=layer(decode_part)
+
+Encoder=tf.keras.Model(enc_x, encode)
+Decoder=tf.keras.Model(dec_x, decode_part)
+Network=tf.keras.Model(enc_x, decode_full)
+
+Encoder.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+Decoder.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+Network.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+```
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+Model_name='Model1'
+
+Network.fit(data_x,
+            data_x,
+            epochs=30,
+            batch_size=512,
+            validation_data=(val_x,val_x),
+           callbacks=callbacks)
+
+Network.save('Network '+Model_name)
+Encoder.save('Encoder '+Model_name)
+Decoder.save('Decoder '+Model_name)
+```
+
+Criando e treinando o Modelo 2:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+# A penalização dos pesos não se mostrou útil, de fato, ela até atrapalhou.
+wei_reg=tf.keras.regularizers.L2(0*10**-3)
+enc_reg=tf.keras.regularizers.L2(10**-1)
+
+mid_act='elu'
+enc_act='linear'
+end_act='linear'
+
+loss=tf.keras.losses.MeanSquaredError()
+metrics=['accuracy']
+optimizer = tf.keras.optimizers.Adam(learning_rate=10**-3,
+                                     beta_1=0.9,
+                                     beta_2=0.999,
+                                     clipnorm=1.0)
+
+layers_encode=[
+    tf.keras.layers.Reshape([28,28,1]),
+    tf.keras.layers.Conv2D(32,
+                           [3,3],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Conv2D(16,
+                           [4,4],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(10,
+                          activation=enc_act,
+                          kernel_regularizer=wei_reg,
+                          activity_regularizer=enc_reg)
+]
+layers_decode=[
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(5*5*16,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Reshape([5,5,16]),
+    tf.keras.layers.Conv2DTranspose(32,
+                                    [5,5],
+                                    strides=(2,2),
+                                    activation=mid_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Conv2DTranspose(1,
+                                    [4,4],
+                                    strides=(2,2),
+                                    activation=mid_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Conv2DTranspose(1,
+                                    [1,1],
+                                    strides=(1,1),
+                                    activation=end_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Flatten()
+]
+
+enc_x=tf.keras.layers.Input([28*28])
+dec_x=tf.keras.layers.Input([10])
+
+encode=enc_x
+for layer in layers_encode:
+    encode=layer(encode)
+    
+decode_full=encode
+decode_part=dec_x
+for layer in layers_decode:
+    decode_full=layer(decode_full)
+    decode_part=layer(decode_part)
+
+Encoder=tf.keras.Model(enc_x, encode)
+Decoder=tf.keras.Model(dec_x, decode_part)
+Network=tf.keras.Model(enc_x, decode_full)
+
+Encoder.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+Decoder.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+Network.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+```
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+Model_name='Model2'
+
+Network.fit(data_x,
+            data_x,
+            epochs=30,
+            batch_size=512,
+            validation_data=(val_x,val_x),
+           callbacks=callbacks)
+
+Network.save('Network '+Model_name)
+Encoder.save('Encoder '+Model_name)
+Decoder.save('Decoder '+Model_name)
+```
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+from sklearn.decomposition import FactorAnalysis
+
+coded=Encoder.predict(data_x)
+
+factanal=FactorAnalysis(2)
+factanal.fit_transform(coded)
+
+Encode_final=lambda x: factanal.transform(Encoder.predict(x))
+```
+
+Criando e ajustando o Modelo 3:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+wei_reg=tf.keras.regularizers.L2(0*10**-3)
+enc_reg=tf.keras.regularizers.L2(10**-1)
+
+mid_act='elu'
+enc_act='linear'
+end_act='softmax'
+
+loss=tf.keras.losses.BinaryCrossentropy()
+metrics=['accuracy']
+optimizer = tf.keras.optimizers.Adam(learning_rate=10**-3,
+                                     beta_1=0.9,
+                                     beta_2=0.999,
+                                     clipnorm=1.0)
+
+layers_encode=[
+    tf.keras.layers.Reshape([28,28,1]),
+    tf.keras.layers.Conv2D(32,
+                          [3,3],
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Conv2D(16,
+                           [4,4],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(2,
+                          activation=enc_act,
+                          kernel_regularizer=wei_reg,
+                          activity_regularizer=enc_reg)
+]
+
+layers_decode=[
+    tf.keras.layers.Dense(16,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(10,
+                          activation=end_act,
+                          kernel_regularizer=wei_reg)
+]
+
+enc_x=tf.keras.layers.Input([28*28])
+dec_x=tf.keras.layers.Input([2])
+
+encode=enc_x
+for layer in layers_encode:
+    encode=layer(encode)
+    
+decode_full=encode
+decode_part=dec_x
+for layer in layers_decode:
+    decode_full=layer(decode_full)
+    decode_part=layer(decode_part)
+
+Encoder=tf.keras.Model(enc_x, encode)
+Decoder=tf.keras.Model(dec_x, decode_part)
+Network=tf.keras.Model(enc_x, decode_full)
+
+Encoder.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+Decoder.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+Network.compile(loss=loss,
+              optimizer=optimizer,
+              metrics=metrics)
+```
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+Model_name='Model3'
+
+Network.fit(data_x,data_l,
+                    epochs=30,
+                    batch_size=512,
+                    validation_data=(val_x,val_l),
+           callbacks=callbacks)
+
+Network.save('Network '+Model_name)
+Encoder.save('Encoder '+Model_name)
+Decoder.save('Decoder '+Model_name)
+```
+
+Criando e treinando o Modelo Híbrido:
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+wei_reg=tf.keras.regularizers.L2(0*10**-3)
+enc_reg=tf.keras.regularizers.L2(10**-1)
+
+mid_act='elu'
+enc_act='linear'
+end_act='softmax'
+
+# Definimos adiante a função de custo associada com cada saída da rede.
+# O nome que está na chave do dicionário é determinado na criação da camada
+# através do argumento "name".
+
+custom_loss={"output1":tf.keras.losses.MeanSquaredError(),
+             "output2":tf.keras.losses.BinaryCrossentropy()}
+
+lossWeights = {"output1": 1.0,
+               "output2": 3.0}
+
+metrics=[]
+optimizer = tf.keras.optimizers.Adam(learning_rate=10**-3,
+                                     beta_1=0.9,
+                                     beta_2=0.999,
+                                     clipnorm=1.0)
+
+layers_encode=[
+    tf.keras.layers.Reshape([28,28,1]),
+    tf.keras.layers.Conv2D(32,
+                           [3,3],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Conv2D(16,
+                           [4,4],
+                           activation=mid_act,
+                           kernel_regularizer=wei_reg),
+    tf.keras.layers.AveragePooling2D([2,2]),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(2,
+                          activation=enc_act,
+                          kernel_regularizer=wei_reg,
+                          activity_regularizer=enc_reg)
+]
+layers_decode1=[
+    tf.keras.layers.Dense(256,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(5*5*16,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Reshape([5,5,16]),
+    tf.keras.layers.Conv2DTranspose(32,
+                                    [5,5],
+                                    strides=(2,2),
+                                    activation=mid_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Conv2DTranspose(1,
+                                    [4,4],
+                                    strides=(2,2),
+                                    activation=mid_act,
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Conv2DTranspose(1,
+                                    [1,1],
+                                    strides=(1,1),
+                                    activation='linear',
+                                    kernel_regularizer=wei_reg),
+    tf.keras.layers.Flatten(name="output1")
+]
+
+
+layers_decode2=[
+    tf.keras.layers.Dense(16,
+                          activation=mid_act,
+                          kernel_regularizer=wei_reg),
+    tf.keras.layers.Dense(10,
+                          activation=end_act,
+                          kernel_regularizer=wei_reg,
+                          name="output2")
+]
+
+enc_x=tf.keras.layers.Input([28*28])
+dec_x=tf.keras.layers.Input([2])
+
+encode=enc_x
+for layer in layers_encode:
+    encode=layer(encode)
+    
+decode_full1=encode
+decode_full2=encode
+decode_part1=dec_x
+decode_part2=dec_x
+for layer in layers_decode1:
+    decode_full1=layer(decode_full1)
+    decode_part1=layer(decode_part1)
+    
+for layer in layers_decode2:
+    decode_full2=layer(decode_full2)
+    decode_part2=layer(decode_part2)
+
+# Esta rede faz a codificação.
+Encoder=tf.keras.Model(enc_x, encode)
+
+# Esta rede decodifica conforme o modelo 1.
+Decoder1=tf.keras.Model(dec_x, decode_part1)
+
+# Esta rede decodifica conforme o modelo 3.
+Decoder2=tf.keras.Model(dec_x, decode_part2)
+
+# Esta rede recebe a imagem e retorna uma lista
+# com o output dos modelos 1 e 3 (nesta ordem).
+Network=tf.keras.Model(enc_x, [decode_full1,decode_full2])
+
+Encoder.compile(loss=custom_loss,
+              optimizer=optimizer,
+              metrics=metrics)
+              
+Decoder1.compile(loss=custom_loss,
+              optimizer=optimizer,
+              metrics=metrics)
+              
+Decoder2.compile(loss=custom_loss,
+              optimizer=optimizer,
+              metrics=metrics)
+              
+Network.compile(loss=custom_loss,
+              optimizer=optimizer,
+              metrics=metrics,
+                loss_weights=lossWeights)
+```
+
+
+```{python eval=FALSE, include=TRUE, echo=TRUE}
+Model_name='Model_hibrid'
+
+Network.fit(data_x,[data_x,data_l],
+                    epochs=30,
+                    batch_size=512,
+                    validation_data=(val_x,[val_x,val_l]),
+           callbacks=callbacks)
+
+Network.save('Network '+Model_name)
+Encoder.save('Encoder '+Model_name)
+Decoder1.save('Decoder1 '+Model_name)
+Decoder2.save('Decoder2 '+Model_name)
+```
+

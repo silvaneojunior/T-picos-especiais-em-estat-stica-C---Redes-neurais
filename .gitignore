@@ -1,6 +1,10 @@
-
+Projeto final/modelos/*
+Projeto final/img/*
+Projeto final/data/*
+*/.*
+*/__*
+.Rproj.user/*
 .Rhistory
-/.Rproj.user/
 mnist_test.csv
 mnist_train.csv
 *.pdf
